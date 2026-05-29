@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR Code</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", sans-serif;
+    background: rgba(255,255,255,0.95);
+    color: #1d1d1d;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    border-radius: 12px;
+  }
+
+  .titlebar {
+    width: 100%;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 8px;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+
+  .close-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: none;
+    font-size: 16px;
+    color: #8e8e8e;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-app-region: no-drag;
+    transition: background 0.15s, color 0.15s;
+  }
+  .close-btn:hover {
+    background: rgba(0,0,0,0.06);
+    color: #1d1d1d;
+  }
+
+  .qr-card {
+    background: #fff;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 8px;
+    padding: 14px;
+    margin: 0 28px 16px;
+  }
+
+  .qr-card img {
+    display: block;
+    max-width: 220px;
+    height: auto;
+  }
+
+  .text-preview {
+    font-size: 13px;
+    color: #8e8e8e;
+    padding: 0 32px;
+    text-align: center;
+    word-break: break-all;
+    max-height: 40px;
+    overflow: hidden;
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+
+  .char-count {
+    font-size: 11px;
+    color: #b0b0b0;
+    margin-top: auto;
+    padding-bottom: 20px;
+  }
+</style>
+</head>
+<body>
+<div class="titlebar">
+  <button class="close-btn" id="close-btn" title="关闭">&times;</button>
+</div>
+<div class="qr-card" id="qr-card"></div>
+<div class="text-preview" id="text-preview"></div>
+<div class="char-count" id="char-count"></div>
+
+<script src="lib/app.js"></script>
+<script src="lib/qrcode-generator.js"></script>
+<script>
+  (function () {
+    'use strict';
+
+    var MAX_LENGTH = 2000;
+    var text = QRCTool.getParam('text');
+
+    if (!text) {
+      document.getElementById('qr-card').innerHTML =
+        '<div style="color:#ff3b30;font-size:14px;padding:16px;">未能获取文本内容</div>';
+      return;
+    }
+
+    var truncated = text.length > MAX_LENGTH ? text.slice(0, MAX_LENGTH) : text;
+    var isTruncated = text.length > MAX_LENGTH;
+
+    // Generate QR code
+    try {
+      var qr = qrcode(0, 'M');
+      qr.addData(truncated);
+      qr.make();
+      document.getElementById('qr-card').innerHTML = qr.createImgTag(7, 3);
+    } catch (e) {
+      document.getElementById('qr-card').innerHTML =
+        '<div style="color:#ff3b30;font-size:14px;padding:16px;">二维码生成失败</div>';
+    }
+
+    // Text preview
+    document.getElementById('text-preview').textContent = truncated;
+
+    // Char count
+    var label = isTruncated
+      ? '已截断（' + text.length + ' → ' + MAX_LENGTH + ' 字符）'
+      : text.length + ' 个字符';
+    document.getElementById('char-count').textContent = label;
+
+    // Close button
+    document.getElementById('close-btn').addEventListener('click', function () {
+      QRCTool.notifyClose().then(function () { QRCTool.closeWindow(); });
+    });
+
+    // ESC to close
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        QRCTool.notifyClose().then(function () { QRCTool.closeWindow(); });
+      }
+    });
+
+    // Blur event to close (click outside)
+    window.addEventListener('blur', function () {
+      QRCTool.notifyClose().then(function () { QRCTool.closeWindow(); });
+    });
+  })();
+</script>
+</body>
+</html>

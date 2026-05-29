@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scanner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", "Helvetica Neue", sans-serif;
+    background: rgba(255,255,255,0.95);
+    color: #1d1d1d;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+    border-radius: 12px;
+  }
+
+  .titlebar {
+    width: 100%;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0 8px;
+    -webkit-app-region: drag;
+    flex-shrink: 0;
+  }
+
+  .close-btn {
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: none;
+    font-size: 16px;
+    color: #8e8e8e;
+    cursor: pointer;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-app-region: no-drag;
+    transition: background 0.15s, color 0.15s;
+  }
+  .close-btn:hover {
+    background: rgba(0,0,0,0.06);
+    color: #1d1d1d;
+  }
+
+  /* Scanner view */
+  .video-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 380px;
+    background: #000;
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 0 20px 12px;
+  }
+  .video-wrap video {
+    display: block;
+    width: 100%;
+    height: auto;
+    object-fit: cover;
+    transform: scaleX(-1);
+  }
+  .scan-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .scan-zone {
+    width: 65%;
+    aspect-ratio: 1;
+    position: relative;
+  }
+  .corner {
+    position: absolute;
+    width: 24px;
+    height: 24px;
+    border-color: #34c759;
+    border-style: solid;
+  }
+  .corner-tl { top: 0; left: 0;   border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .corner-tr { top: 0; right: 0;  border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .corner-bl { bottom: 0; left: 0;  border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+  .corner-br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+  .scanner-hint {
+    font-size: 13px;
+    color: #8e8e8e;
+    margin-bottom: 8px;
+  }
+
+  /* Result view */
+  .result-icon {
+    width: 44px;
+    height: 44px;
+    border: 3px solid #34c759;
+    border-radius: 50%;
+    position: relative;
+    margin: 16px auto 8px;
+  }
+  .result-icon::after {
+    content: '';
+    position: absolute;
+    left: 12px;
+    top: 6px;
+    width: 12px;
+    height: 20px;
+    border: solid #34c759;
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg);
+  }
+  .result-title {
+    font-size: 14px;
+    color: #1d1d1d;
+    margin-bottom: 14px;
+  }
+  .result-content {
+    background: rgba(0,0,0,0.04);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    word-break: break-all;
+    text-align: left;
+    max-height: 140px;
+    overflow-y: auto;
+    line-height: 1.5;
+    margin: 0 24px 16px;
+    width: calc(100% - 48px);
+    white-space: pre-wrap;
+    user-select: all;
+    -webkit-user-select: all;
+  }
+  .result-content a {
+    color: #007aff;
+    word-break: break-all;
+  }
+  .copy-btn {
+    padding: 7px 24px;
+    background: #007aff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s;
+  }
+  .copy-btn:hover { background: #0066d6; }
+  .copy-btn:active { background: #004da6; }
+  .copy-btn.copied { background: #34c759; }
+
+  /* Error view */
+  .error-icon {
+    width: 44px;
+    height: 44px;
+    border: 3px solid #ff3b30;
+    border-radius: 50%;
+    position: relative;
+    margin: 16px auto 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    font-weight: 600;
+    color: #ff3b30;
+    font-family: -apple-system, sans-serif;
+  }
+  .error-msg {
+    font-size: 14px;
+    color: #ff3b30;
+    padding: 12px 24px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div id="scanner-view">
+  <div class="titlebar">
+    <button class="close-btn" id="close-scanner" title="关闭">&times;</button>
+  </div>
+  <div class="video-wrap">
+    <video id="video" autoplay playsinline></video>
+    <div class="scan-overlay">
+      <div class="scan-zone">
+        <div class="corner corner-tl"></div>
+        <div class="corner corner-tr"></div>
+        <div class="corner corner-bl"></div>
+        <div class="corner corner-br"></div>
+      </div>
+    </div>
+  </div>
+  <div class="scanner-hint">将二维码对准框内</div>
+</div>
+
+<div id="result-view" class="hidden"></div>
+<div id="error-view" class="hidden"></div>
+
+<script src="lib/app.js"></script>
+<script src="lib/jsqr.js"></script>
+<script>
+  (function () {
+    'use strict';
+
+    var stream = null;
+    var rafId = null;
+    var scanning = true;
+
+    var scannerView = document.getElementById('scanner-view');
+    var resultView = document.getElementById('result-view');
+    var errorView = document.getElementById('error-view');
+
+    // --- Close helpers ---
+    function doClose() {
+      stopCamera();
+      QRCTool.notifyClose().then(function () { QRCTool.closeWindow(); });
+    }
+
+    function stopCamera() {
+      scanning = false;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      if (stream) {
+        stream.getTracks().forEach(function (t) { t.stop(); });
+        stream = null;
+      }
+    }
+
+    // --- Close buttons ---
+    document.getElementById('close-scanner').addEventListener('click', doClose);
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') doClose();
+    });
+    window.addEventListener('blur', function () {
+      doClose();
+    });
+
+    // --- Show error ---
+    function showError(msg) {
+      stopCamera();
+      scannerView.classList.add('hidden');
+      errorView.classList.remove('hidden');
+      errorView.innerHTML =
+        '<div class="titlebar">' +
+          '<button class="close-btn" id="close-error" title="关闭">&times;</button>' +
+        '</div>' +
+        '<div class="error-icon">!</div>' +
+        '<div class="error-msg">' + msg + '</div>';
+      document.getElementById('close-error').addEventListener('click', doClose);
+    }
+
+    // --- Show result ---
+    function showResult(text) {
+      stopCamera();
+      scannerView.classList.add('hidden');
+      resultView.classList.remove('hidden');
+
+      var isUrl = QRCTool.isURL(text);
+      var displayText = text.length > 2000 ? text.slice(0, 2000) + '\n…' : text;
+
+      resultView.innerHTML =
+        '<div class="titlebar">' +
+          '<button class="close-btn" id="close-result" title="关闭">&times;</button>' +
+        '</div>' +
+        '<div class="result-icon"></div>' +
+        '<div class="result-title">扫描成功</div>' +
+        '<div class="result-content">' +
+          (isUrl
+            ? '<a href="' + text.replace(/"/g, '&quot;') + '" target="_blank" rel="noopener">' + QRCTool.escapeHTML(displayText) + '</a>'
+            : QRCTool.escapeHTML(displayText)) +
+        '</div>' +
+        '<button class="copy-btn" id="copy-btn">复制内容</button>';
+
+      document.getElementById('close-result').addEventListener('click', doClose);
+
+      var copyBtn = document.getElementById('copy-btn');
+      copyBtn.addEventListener('click', function () {
+        QRCTool.copyText(text).then(function () {
+          copyBtn.textContent = '已复制';
+          copyBtn.classList.add('copied');
+        });
+      });
+    }
+
+    // --- Start camera ---
+    startCamera();
+
+    function startCamera() {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showError('无法访问摄像头。请确认系统已连接摄像头设备。');
+        return;
+      }
+
+      navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+      }).then(function (s) {
+        stream = s;
+        var video = document.getElementById('video');
+        video.srcObject = stream;
+        return video.play();
+      }).then(function () {
+        startScanning();
+      }).catch(function (err) {
+        if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+          showError('摄像头权限被拒绝。请在系统设置中允许本应用访问摄像头。');
+        } else if (err.name === 'NotFoundError') {
+          showError('未检测到摄像头设备。');
+        } else {
+          showError('无法打开摄像头：' + err.message);
+        }
+      });
+    }
+
+    function startScanning() {
+      var video = document.getElementById('video');
+      var canvas = document.createElement('canvas');
+      var ctx = canvas.getContext('2d');
+
+      function scan() {
+        if (!scanning) return;
+
+        if (video.videoWidth === 0) {
+          rafId = requestAnimationFrame(scan);
+          return;
+        }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        var imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+
+        if (typeof jsQR !== 'undefined') {
+          try {
+            var result = jsQR(imageData.data, canvas.width, canvas.height, {
+              inversionAttempts: 'dontInvert'
+            });
+            if (result) {
+              showResult(result.data);
+              return;
+            }
+          } catch (_) {}
+        }
+
+        rafId = requestAnimationFrame(scan);
+      }
+
+      rafId = requestAnimationFrame(scan);
+    }
+  })();
+</script>
+</body>
+</html>
