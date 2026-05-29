@@ -31,11 +31,14 @@ jobs:
         with:
           args: --target aarch64-apple-darwin
 
+      - name: Debug bundle path
+        run: find src-tauri/target -name "*.dmg" -o -name "*.app" -type d 2>/dev/null | head -10
+
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: qrcode-tool-macos
-          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          path: src-tauri/target/**/bundle/dmg/*.dmg
 
   build-windows:
     runs-on: windows-latest
@@ -60,8 +63,11 @@ jobs:
         with:
           args: --target x86_64-pc-windows-msvc
 
+      - name: Debug bundle path
+        run: dir /s /b src-tauri\target\*.msi 2>nul || echo "No msi found"
+
       - name: Upload Windows artifact
         uses: actions/upload-artifact@v4
         with:
           name: qrcode-tool-windows
-          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
+          path: src-tauri/target/**/bundle/msi/*.msi
